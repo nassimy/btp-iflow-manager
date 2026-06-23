@@ -11,14 +11,14 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
+    "build": "react-scripts build && npm run copy:approuter",
+    "copy:approuter": "rimraf approuter/resources && mkdir -p approuter/resources && cp -r build/. approuter/resources/",
     "start:proxy": "cd proxy && node server.js",
-    "dev": "concurrently \"npm start\" \"npm run start:proxy\"",
-    "mta:build": "mbt build",
-    "cf:deploy": "cf deploy mta_archives/btp-iflow-manager_1.0.0.mtar"
+    "dev": "concurrently \"npm start\" \"npm run start:proxy\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "rimraf": "^5.0.5"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],

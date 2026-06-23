@@ -5,39 +5,29 @@ description: BTP Integration Suite iFlow Manager
 
 modules:
 
-  # ── 1. React frontend (built as static HTML/JS/CSS) ─────────────────────────
-  - name: btp-iflow-manager-ui
-    type: html5
-    path: .
-    build-parameters:
-      builder: custom
-      build-result: build
-      commands:
-        - npm install
-        - npm run build
-      supported-platforms: []
-
-  # ── 2. Approuter (handles auth + routes traffic to the UI and the backend) ──
+  # ── 1. Approuter (serves the React build + handles auth + routes to backend) ─
+  #       The React app is built into approuter/resources/ before deploy.
   - name: btp-iflow-manager-approuter
     type: approuter.nodejs
     path: approuter
     parameters:
-      memory: 128M
-      disk-quota: 256M
+      memory: 256M
+      disk-quota: 512M
     build-parameters:
-      builder: npm
+      builder: custom
+      commands:
+        - npm install
+      supported-platforms: []
     requires:
       - name: btp-iflow-manager-xsuaa
       - name: btp-iflow-manager-destination
-      - name: btp-iflow-manager-ui
-        parameters:
-          content-target: true
+      - name: srv-api
     provides:
       - name: approuter-url
         properties:
           url: ${default-url}
 
-  # ── 3. Backend API proxy (Node.js — fetches tokens, calls Integration Suite) ─
+  # ── 2. Backend API proxy (Node.js — fetches tokens, calls Integration Suite) ─
   - name: btp-iflow-manager-srv
     type: nodejs
     path: proxy
@@ -46,6 +36,7 @@ modules:
       disk-quota: 512M
     build-parameters:
       builder: npm
+      supported-platforms: []
     requires:
       - name: btp-iflow-manager-xsuaa
       - name: btp-iflow-manager-destination
