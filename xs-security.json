@@ -1,0 +1,43 @@
+{
+  "xsappname": "btp-iflow-manager",
+  "tenant-mode": "dedicated",
+  "description": "BTP iFlow Manager security descriptor",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.view",
+      "description": "View iFlows"
+    },
+    {
+      "name": "$XSAPPNAME.deploy",
+      "description": "Deploy iFlows"
+    },
+    {
+      "name": "$XSAPPNAME.manage",
+      "description": "Upload and delete iFlows"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "Viewer",
+      "description": "Can view iFlows and their status",
+      "scope-references": ["$XSAPPNAME.view"]
+    },
+    {
+      "name": "Operator",
+      "description": "Can view and deploy iFlows",
+      "scope-references": ["$XSAPPNAME.view", "$XSAPPNAME.deploy"]
+    },
+    {
+      "name": "Administrator",
+      "description": "Full access — view, deploy, upload, delete",
+      "scope-references": [
+        "$XSAPPNAME.view",
+        "$XSAPPNAME.deploy",
+        "$XSAPPNAME.manage"
+      ]
+    }
+  ],
+  "oauth2-configuration": {
+    "redirect-uris": ["https://*.cfapps.eu10.hana.ondemand.com/**"]
+  }
+}

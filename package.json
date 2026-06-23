@@ -2,6 +2,7 @@
   "name": "btp-iflow-manager",
   "version": "1.0.0",
   "private": true,
+  "proxy": "http://localhost:3001",
   "dependencies": {
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
@@ -10,7 +11,14 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build"
+    "build": "react-scripts build",
+    "start:proxy": "cd proxy && node server.js",
+    "dev": "concurrently \"npm start\" \"npm run start:proxy\"",
+    "mta:build": "mbt build",
+    "cf:deploy": "cf deploy mta_archives/btp-iflow-manager_1.0.0.mtar"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
