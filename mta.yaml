@@ -5,29 +5,7 @@ description: BTP Integration Suite iFlow Manager
 
 modules:
 
-  # ── 1. Approuter (serves the React build + handles auth + routes to backend) ─
-  #       The React app is built into approuter/resources/ before deploy.
-  - name: btp-iflow-manager-approuter
-    type: approuter.nodejs
-    path: approuter
-    parameters:
-      memory: 256M
-      disk-quota: 512M
-    build-parameters:
-      builder: custom
-      commands:
-        - npm install
-      supported-platforms: []
-    requires:
-      - name: btp-iflow-manager-xsuaa
-      - name: btp-iflow-manager-destination
-      - name: srv-api
-    provides:
-      - name: approuter-url
-        properties:
-          url: ${default-url}
-
-  # ── 2. Backend API proxy (Node.js — fetches tokens, calls Integration Suite) ─
+  # ── 1. Backend API proxy ──────────────────────────────────────────────────────
   - name: btp-iflow-manager-srv
     type: nodejs
     path: proxy
@@ -45,9 +23,31 @@ modules:
         properties:
           srv-url: ${default-url}
 
+  # ── 2. Approuter (serves React static files + proxies /api/* to backend) ──────
+  - name: btp-iflow-manager-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+    build-parameters:
+      builder: custom
+      commands:
+        - npm install
+      supported-platforms: []
+    requires:
+      - name: btp-iflow-manager-xsuaa
+      - name: btp-iflow-manager-destination
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
+
 resources:
 
-  # ── XSUAA: handles user login / JWT tokens ───────────────────────────────────
+  # ── XSUAA ─────────────────────────────────────────────────────────────────────
   - name: btp-iflow-manager-xsuaa
     type: org.cloudfoundry.managed-service
     parameters:
@@ -55,7 +55,7 @@ resources:
       service-plan: application
       path: ./xs-security.json
 
-  # ── Destination Service: holds Integration Suite credentials ─────────────────
+  # ── Destination Service ───────────────────────────────────────────────────────
   - name: btp-iflow-manager-destination
     type: org.cloudfoundry.managed-service
     parameters:

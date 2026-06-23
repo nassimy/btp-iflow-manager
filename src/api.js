@@ -5,7 +5,8 @@
 // The proxy handles OAuth tokens and CSRF tokens transparently.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const PROXY = "http://localhost:3001";
+// Relative path works locally (proxied by React dev server) and on CF (routed by Approuter)
+const PROXY = "";
 
 async function handleResponse(res) {
   if (!res.ok) {

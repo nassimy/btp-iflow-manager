@@ -11,14 +11,13 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build && npm run copy:approuter",
-    "copy:approuter": "rimraf approuter/resources && mkdir -p approuter/resources && cp -r build/. approuter/resources/",
+    "build:react": "react-scripts build",
+    "build": "bash build.sh",
     "start:proxy": "cd proxy && node server.js",
     "dev": "concurrently \"npm start\" \"npm run start:proxy\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "rimraf": "^5.0.5"
+    "concurrently": "^8.2.2"
   },
   "browserslist": {
     "production": [">0.2%", "not dead", "not op_mini all"],
