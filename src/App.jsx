@@ -3,9 +3,10 @@ import { fetchPackages, fetchIFlows, fetchRuntimeArtifacts, uploadIFlow, deployI
 import { IFlowTable } from "./components/IFlowTable";
 import { UploadModal } from "./components/UploadModal";
 import { ConfirmDeployModal, ConfirmDeleteModal, ConfirmBulkModal } from "./components/ConfirmModal";
+import { MaintenanceTab } from "./components/MaintenanceTab";
 import { Button, Spinner } from "./components/UI";
 import { Toast, useToast } from "./components/Toast";
-import { Upload, RefreshCw, Play, PowerOff } from "lucide-react";
+import { Upload, RefreshCw, Play, PowerOff, Wrench, LayoutDashboard } from "lucide-react";
 
 const STAT_CARDS = [
   { label: "Total",        key: "total",       color: "#1A1A18" },
@@ -14,7 +15,13 @@ const STAT_CARDS = [
   { label: "Not deployed", key: "notDeployed", color: "#854F0B" },
 ];
 
+const TABS = [
+  { id: "dashboard",    label: "Dashboard",    icon: LayoutDashboard },
+  { id: "maintenance",  label: "Maintenance",  icon: Wrench },
+];
+
 export default function App() {
+  const [activeTab, setActiveTab]       = useState("dashboard");
   const [packages, setPackages]         = useState([]);
   const [iflows, setIFlows]             = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -26,8 +33,11 @@ export default function App() {
   const [deployTarget, setDeployTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [selected, setSelected]         = useState(new Set());
-  const [bulkAction, setBulkAction]     = useState(null); // { action: "deploy"|"undeploy", iflows: [] }
+  const [bulkAction, setBulkAction]     = useState(null);
   const { toast, show: showToast }      = useToast();
+
+  // Check if a maintenance session is active (for tab badge)
+  const hasMaintenanceSession = !!localStorage.getItem("iflow_maintenance_session");
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -103,14 +113,15 @@ export default function App() {
   };
 
   const handleBulkClose = () => {
+    const action = bulkAction?.action;
     setBulkAction(null);
     setSelected(new Set());
-    setTimeout(() => load(true), bulkAction?.action === "deploy" ? 4000 : 1000);
+    setTimeout(() => load(true), action === "deploy" ? 4000 : 1000);
     showToast(
-      bulkAction?.action === "deploy"
+      action === "deploy"
         ? "Bulk deploy triggered — statuses will update shortly."
         : "iFlows undeployed successfully.",
-      bulkAction?.action === "deploy" ? "info" : "success"
+      action === "deploy" ? "info" : "success"
     );
   };
 
@@ -131,7 +142,6 @@ export default function App() {
     notDeployed: iflows.filter((f) => f.status === "not deployed").length,
   };
 
-  // Selected iflows split by eligibility
   const selectedIFlows    = iflows.filter(f => selected.has(f.id));
   const deployableCount   = selectedIFlows.filter(f => f.status === "not deployed").length;
   const undeployableCount = selectedIFlows.filter(f => f.status !== "not deployed").length;
@@ -144,6 +154,8 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F7F6F2", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+
+      {/* ── Header ── */}
       <header style={{
         background: "#fff", borderBottom: "1px solid #ECEAE3",
         padding: "0 2rem", display: "flex", alignItems: "center",
@@ -159,98 +171,136 @@ export default function App() {
             <RefreshCw size={13} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
             Refresh
           </Button>
-          <Button variant="primary" onClick={() => setShowUpload(true)}>
-            <Upload size={13} /> Upload iFlow
-          </Button>
+          {activeTab === "dashboard" && (
+            <Button variant="primary" onClick={() => setShowUpload(true)}>
+              <Upload size={13} /> Upload iFlow
+            </Button>
+          )}
         </div>
       </header>
 
-      <main style={{ maxWidth: 1100, margin: "0 auto", padding: "1.75rem 1.5rem" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: "1.5rem" }}>
-          {STAT_CARDS.map((s) => (
-            <div key={s.key} style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10, padding: "12px 16px" }}>
-              <div style={{ fontSize: 11, color: "#9B9890", fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: s.color }}>{loading ? "—" : stats[s.key]}</div>
-            </div>
-          ))}
-        </div>
+      {/* ── Tab bar ── */}
+      <div style={{ background: "#fff", borderBottom: "1px solid #ECEAE3", padding: "0 2rem", display: "flex", gap: 0 }}>
+        {TABS.map(({ id, label, icon: Icon }) => {
+          const isActive = activeTab === id;
+          const showBadge = id === "maintenance" && hasMaintenanceSession;
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "0 4px", height: 44, fontSize: 13, fontWeight: isActive ? 600 : 500,
+                color: isActive ? "#1A1A18" : "#6B6963",
+                background: "none", border: "none", borderBottom: isActive ? "2px solid #1A1A18" : "2px solid transparent",
+                cursor: "pointer", fontFamily: "inherit", marginRight: 24, position: "relative",
+                transition: "color 0.15s",
+              }}
+            >
+              <Icon size={14} />
+              {label}
+              {showBadge && (
+                <span style={{
+                  width: 7, height: 7, borderRadius: "50%",
+                  background: "#E8A600", position: "absolute", top: 10, right: -6,
+                }} />
+              )}
+            </button>
+          );
+        })}
+      </div>
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: "1rem" }}>
-          <input style={{ ...inputStyle, width: 210 }} placeholder="Search by name or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
-          <select style={inputStyle} value={pkgFilter} onChange={(e) => setPkgFilter(e.target.value)}>
-            <option value="">All packages</option>
-            {packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-          <select style={inputStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">All statuses</option>
-            <option value="started">Started</option>
-            <option value="stopped">Stopped</option>
-            <option value="error">Error</option>
-            <option value="not deployed">Not deployed</option>
-          </select>
-          <span style={{ marginLeft: "auto", fontSize: 12, color: "#9B9890" }}>
-            {loading ? <Spinner size={13} /> : `${visible.length} iFlow${visible.length !== 1 ? "s" : ""}`}
-          </span>
-        </div>
-
-        {/* ── Bulk action bar — shown only when items are selected ── */}
-        {selected.size > 0 && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 10,
-            background: "#E6F1FB", border: "1px solid #85B7EB",
-            borderRadius: 8, padding: "8px 14px", marginBottom: "0.75rem",
-          }}>
-            <span style={{ fontSize: 13, color: "#0C447C", fontWeight: 600 }}>
-              {selected.size} iFlow{selected.size !== 1 ? "s" : ""} selected
-            </span>
-            <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-              <Button
-                variant="success"
-                style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
-                onClick={() => setBulkAction({ action: "deploy", iflows: selectedIFlows.filter(f => f.status === "not deployed") })}
-                disabled={deployableCount === 0}
-                title={deployableCount === 0 ? "No iFlows selected" : `Deploy ${deployableCount} iFlow${deployableCount !== 1 ? "s" : ""}`}
-              >
-                <Play size={12} /> Deploy {deployableCount}
-              </Button>
-              <Button
-                variant="danger"
-                style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
-                onClick={() => setBulkAction({ action: "undeploy", iflows: selectedIFlows.filter(f => f.status !== "not deployed") })}
-                disabled={undeployableCount === 0}
-                title={undeployableCount === 0 ? "None of the selected iFlows are deployed" : `Undeploy ${undeployableCount} iFlow${undeployableCount !== 1 ? "s" : ""}`}
-              >
-                <PowerOff size={12} /> Undeploy {undeployableCount}
-              </Button>
-              <Button
-                style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
-                onClick={() => setSelected(new Set())}
-              >
-                Clear
-              </Button>
-            </div>
+      {/* ── Dashboard tab ── */}
+      {activeTab === "dashboard" && (
+        <main style={{ maxWidth: 1100, margin: "0 auto", padding: "1.75rem 1.5rem" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: "1.5rem" }}>
+            {STAT_CARDS.map((s) => (
+              <div key={s.key} style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10, padding: "12px 16px" }}>
+                <div style={{ fontSize: 11, color: "#9B9890", fontWeight: 500, marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: s.color }}>{loading ? "—" : stats[s.key]}</div>
+              </div>
+            ))}
           </div>
-        )}
 
-        <div style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10, overflow: "hidden" }}>
-          {loading
-            ? <div style={{ textAlign: "center", padding: "3rem", color: "#6B6963" }}><Spinner size={24} /></div>
-            : <IFlowTable
-                iflows={visible}
-                onDeploy={setDeployTarget}
-                onDelete={setDeleteTarget}
-                selected={selected}
-                onToggle={handleToggle}
-                onToggleAll={handleToggleAll}
-              />
-          }
-        </div>
-      </main>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: "1rem" }}>
+            <input style={{ ...inputStyle, width: 210 }} placeholder="Search by name or ID…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <select style={inputStyle} value={pkgFilter} onChange={(e) => setPkgFilter(e.target.value)}>
+              <option value="">All packages</option>
+              {packages.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+            <select style={inputStyle} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="">All statuses</option>
+              <option value="started">Started</option>
+              <option value="stopped">Stopped</option>
+              <option value="error">Error</option>
+              <option value="not deployed">Not deployed</option>
+            </select>
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#9B9890" }}>
+              {loading ? <Spinner size={13} /> : `${visible.length} iFlow${visible.length !== 1 ? "s" : ""}`}
+            </span>
+          </div>
 
-      {showUpload  && <UploadModal packages={packages} onUpload={handleUpload} onClose={() => setShowUpload(false)} />}
+          {/* Bulk action bar */}
+          {selected.size > 0 && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10,
+              background: "#E6F1FB", border: "1px solid #85B7EB",
+              borderRadius: 8, padding: "8px 14px", marginBottom: "0.75rem",
+            }}>
+              <span style={{ fontSize: 13, color: "#0C447C", fontWeight: 600 }}>
+                {selected.size} iFlow{selected.size !== 1 ? "s" : ""} selected
+              </span>
+              <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+                <Button
+                  variant="success"
+                  style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
+                  onClick={() => setBulkAction({ action: "deploy", iflows: selectedIFlows.filter(f => f.status === "not deployed") })}
+                  disabled={deployableCount === 0}
+                  title={deployableCount === 0 ? "No undeployed iFlows selected" : `Deploy ${deployableCount} iFlow${deployableCount !== 1 ? "s" : ""}`}
+                >
+                  <Play size={12} /> Deploy {deployableCount > 0 ? deployableCount : ""}
+                </Button>
+                <Button
+                  variant="danger"
+                  style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
+                  onClick={() => setBulkAction({ action: "undeploy", iflows: selectedIFlows.filter(f => f.status !== "not deployed") })}
+                  disabled={undeployableCount === 0}
+                  title={undeployableCount === 0 ? "None of the selected iFlows are deployed" : `Undeploy ${undeployableCount} iFlow${undeployableCount !== 1 ? "s" : ""}`}
+                >
+                  <PowerOff size={12} /> Undeploy {undeployableCount > 0 ? undeployableCount : ""}
+                </Button>
+                <Button style={{ height: 28, padding: "4px 10px", fontSize: 12 }} onClick={() => setSelected(new Set())}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10, overflow: "hidden" }}>
+            {loading
+              ? <div style={{ textAlign: "center", padding: "3rem", color: "#6B6963" }}><Spinner size={24} /></div>
+              : <IFlowTable
+                  iflows={visible}
+                  onDeploy={setDeployTarget}
+                  onDelete={setDeleteTarget}
+                  selected={selected}
+                  onToggle={handleToggle}
+                  onToggleAll={handleToggleAll}
+                />
+            }
+          </div>
+        </main>
+      )}
+
+      {/* ── Maintenance tab ── */}
+      {activeTab === "maintenance" && (
+        <MaintenanceTab iflows={iflows} />
+      )}
+
+      {showUpload   && <UploadModal packages={packages} onUpload={handleUpload} onClose={() => setShowUpload(false)} />}
       {deployTarget && <ConfirmDeployModal iflow={deployTarget} onConfirm={handleDeploy} onClose={() => setDeployTarget(null)} />}
       {deleteTarget && <ConfirmDeleteModal iflow={deleteTarget} onConfirm={handleDelete} onClose={() => setDeleteTarget(null)} />}
-      {bulkAction  && (
+      {bulkAction   && (
         <ConfirmBulkModal
           iflows={bulkAction.iflows}
           action={bulkAction.action}
