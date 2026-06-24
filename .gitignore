@@ -1,0 +1,97 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+build/
+dist/
+out/
+
+# Environment variables (keep .env.example, ignore actual secrets)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# BTP / SAP credentials and config
+default-env.json
+private-key.pem
+*.pfx
+*.p12
+*.key
+
+# SAP BAS (Business Application Studio)
+.theia/
+.che/
+.vscode/
+*.vscode-workspace
+.gitpod.yml
+
+# MTA (Multi-Target Application)
+mta_archives/
+*.mtar
+.mtaignore
+resources/
+
+# CAP / CDS
+gen/
+.cdsrc-private.json
+@cds-models/
+
+# CF (Cloud Foundry) deployment
+manifest.yml.bak
+cf-push-*.log
+
+# SAP Fiori / UI5
+webapp/test/
+dist/
+ui5-local.yaml
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+logs/
+*.log
+
+# Testing
+coverage/
+.nyc_output/
+
+# Cache
+.cache/
+.eslintcache
+.stylelintcache
+.parcel-cache/
+.turbo/
+
+# Editor & IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Optional: yarn / npm lock (uncomment one if you want to ignore it)
+# package-lock.json
+# yarn.lock
+
+# Misc
+.vercel
+.netlify
