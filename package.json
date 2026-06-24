@@ -14,7 +14,8 @@
     "build:react": "react-scripts build",
     "build": "bash build.sh",
     "start:proxy": "cd proxy && node server.js",
-    "dev": "concurrently \"npm start\" \"npm run start:proxy\""
+    "dev": "concurrently \"npm start\" \"npm run start:proxy\"",
+    "deploy:ui": "react-scripts build && cp -r build/* approuter/resources/ && cd approuter && cf push btp-iflow-manager-approuter"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

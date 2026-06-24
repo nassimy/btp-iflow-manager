@@ -100,20 +100,49 @@ async function getBtpToken() {
 }
 
 // ── CSRF cache ────────────────────────────────────────────────────────────────
+// FIX 1: reduced TTL from 30 min → 5 min (SAP CPI tokens expire ~10 min)
 let csrfCache = { token: null, cookie: null, expiresAt: 0 };
+
+function invalidateCsrfCache() {
+  csrfCache = { token: null, cookie: null, expiresAt: 0 };
+}
 
 async function getCsrfToken() {
   const now = Date.now();
   if (csrfCache.token && now < csrfCache.expiresAt - 30_000) return csrfCache;
 
   const { token, baseUrl } = await getBtpToken();
-  const res = await fetch(`${baseUrl}/api/v1/`, {
+
+  // FIX 2: removed trailing slash from /api/v1/ → /api/v1
+  const res = await fetch(`${baseUrl}/api/v1`, {
     headers: { Authorization: `Bearer ${token}`, "X-CSRF-Token": "Fetch" },
   });
+
   const csrf = res.headers.get("x-csrf-token");
-  if (!csrf) throw new Error("No CSRF token returned");
-  csrfCache = { token: csrf, cookie: res.headers.get("set-cookie"), expiresAt: now + 30 * 60 * 1000 };
+  if (!csrf) throw new Error(`No CSRF token returned (status ${res.status})`);
+
+  // FIX 3: cache for 5 min instead of 30 min
+  csrfCache = { token: csrf, cookie: res.headers.get("set-cookie"), expiresAt: now + 5 * 60 * 1000 };
+  console.log("CSRF token refreshed");
   return csrfCache;
+}
+
+// ── CSRF-aware POST/DELETE helper with auto-retry on 403 ─────────────────────
+// FIX 4: single retry with fresh CSRF token when BTP returns 403
+async function btpWrite(buildRequest) {
+  const { token, baseUrl } = await getBtpToken();
+  let csrf = await getCsrfToken();
+
+  let btpRes = await buildRequest(token, baseUrl, csrf);
+
+  if (btpRes.status === 403) {
+    console.warn("[btpWrite] 403 received — refreshing CSRF token and retrying...");
+    invalidateCsrfCache();
+    csrf = await getCsrfToken();
+    btpRes = await buildRequest(token, baseUrl, csrf);
+  }
+
+  return btpRes;
 }
 
 // ── Safe JSON parse ───────────────────────────────────────────────────────────
@@ -165,23 +194,28 @@ app.get("/api/runtime/:id", (req, res) =>
   btpGet(`IntegrationRuntimeArtifacts('${req.params.id}')?$format=json`, res)
 );
 
+// FIX 5: deploy URL uses %27 encoding instead of raw single quotes
 app.post("/api/iflows/:id/deploy", async (req, res) => {
   try {
-    const { token, baseUrl } = await getBtpToken();
-    const csrf = await getCsrfToken();
     const version = req.query.version || "Active";
-    const btpRes = await fetch(
-      `${baseUrl}/api/v1/DeployIntegrationDesigntimeArtifact?Id='${req.params.id}'&Version='${version}'`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "X-CSRF-Token": csrf.token,
-          ...(csrf.cookie ? { Cookie: csrf.cookie } : {}),
-        },
-      }
+
+    const btpRes = await btpWrite((token, baseUrl, csrf) =>
+      fetch(
+        `${baseUrl}/api/v1/DeployIntegrationDesigntimeArtifact?Id=%27${encodeURIComponent(req.params.id)}%27&Version=%27${encodeURIComponent(version)}%27`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "X-CSRF-Token": csrf.token,
+            ...(csrf.cookie ? { Cookie: csrf.cookie } : {}),
+          },
+        }
+      )
     );
+
+    console.log("[deploy] status:", btpRes.status);
     const text = await btpRes.text();
+    console.log("[deploy] response:", text.substring(0, 300));
     res.status(btpRes.status).json({ message: text || "Deploy triggered" });
   } catch (err) {
     console.error("[deploy]", err.message);
@@ -191,27 +225,30 @@ app.post("/api/iflows/:id/deploy", async (req, res) => {
 
 app.post("/api/iflows", upload.single("file"), async (req, res) => {
   try {
-    const { token, baseUrl } = await getBtpToken();
-    const csrf = await getCsrfToken();
     const { name, version, packageId } = req.body;
-    const form = new FormData();
-    form.append("Id", name.replace(/\s+/g, "_"));
-    form.append("Name", name);
-    form.append("PackageId", packageId);
-    form.append("ArtifactContent", req.file.buffer, {
-      filename: req.file.originalname,
-      contentType: "application/zip",
+
+    const btpRes = await btpWrite((token, baseUrl, csrf) => {
+      const form = new FormData();
+      form.append("Id", name.replace(/\s+/g, "_"));
+      form.append("Name", name);
+      form.append("PackageId", packageId);
+      form.append("ArtifactContent", req.file.buffer, {
+        filename: req.file.originalname,
+        contentType: "application/zip",
+      });
+      return fetch(`${baseUrl}/api/v1/IntegrationDesigntimeArtifacts`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "X-CSRF-Token": csrf.token,
+          ...(csrf.cookie ? { Cookie: csrf.cookie } : {}),
+          ...form.getHeaders(),
+        },
+        body: form,
+      });
     });
-    const btpRes = await fetch(`${baseUrl}/api/v1/IntegrationDesigntimeArtifacts`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "X-CSRF-Token": csrf.token,
-        ...(csrf.cookie ? { Cookie: csrf.cookie } : {}),
-        ...form.getHeaders(),
-      },
-      body: form,
-    });
+
+    console.log("[upload] status:", btpRes.status);
     res.status(btpRes.status).json(await safeJson(btpRes));
   } catch (err) {
     console.error("[upload]", err.message);
@@ -219,25 +256,34 @@ app.post("/api/iflows", upload.single("file"), async (req, res) => {
   }
 });
 
+// ── Undeploy iFlow from runtime (does NOT delete from design workspace) ───────
 app.delete("/api/iflows/:id", async (req, res) => {
   try {
-    const { token, baseUrl } = await getBtpToken();
-    const csrf = await getCsrfToken();
-    const version = req.query.version || "Active";
-    const btpRes = await fetch(
-      `${baseUrl}/api/v1/IntegrationDesigntimeArtifacts(Id='${req.params.id}',Version='${version}')`,
-      {
+    const { id } = req.params;
+
+    const btpRes = await btpWrite((token, baseUrl, csrf) =>
+      fetch(`${baseUrl}/api/v1/IntegrationRuntimeArtifacts('${id}')`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
           "X-CSRF-Token": csrf.token,
           ...(csrf.cookie ? { Cookie: csrf.cookie } : {}),
         },
-      }
+      })
     );
-    res.status(btpRes.status).json({ id: req.params.id });
+
+    console.log("[undeploy] status:", btpRes.status);
+    const text = await btpRes.text();
+    console.log("[undeploy] response:", text.substring(0, 300));
+
+    // 202 = undeploy accepted (async), 404 = already undeployed (treat as success)
+    if (btpRes.status === 202 || btpRes.status === 404) {
+      return res.status(200).json({ id, message: btpRes.status === 404 ? "Already undeployed" : "Undeploy triggered" });
+    }
+
+    res.status(btpRes.status).json({ id, message: text || "Unexpected response" });
   } catch (err) {
-    console.error("[delete]", err.message);
+    console.error("[undeploy]", err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { fetchPackages, fetchIFlows, fetchRuntimeArtifacts, uploadIFlow, deployIFlow, deleteIFlow } from "./api";
 import { IFlowTable } from "./components/IFlowTable";
 import { UploadModal } from "./components/UploadModal";
-import { ConfirmDeployModal, ConfirmDeleteModal } from "./components/ConfirmModal";
+import { ConfirmDeployModal, ConfirmDeleteModal, ConfirmBulkModal } from "./components/ConfirmModal";
 import { Button, Spinner } from "./components/UI";
 import { Toast, useToast } from "./components/Toast";
-import { Upload, RefreshCw } from "lucide-react";
+import { Upload, RefreshCw, Play, PowerOff } from "lucide-react";
 
 const STAT_CARDS = [
   { label: "Total",        key: "total",       color: "#1A1A18" },
@@ -25,36 +25,31 @@ export default function App() {
   const [showUpload, setShowUpload]     = useState(false);
   const [deployTarget, setDeployTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [selected, setSelected]         = useState(new Set());
+  const [bulkAction, setBulkAction]     = useState(null); // { action: "deploy"|"undeploy", iflows: [] }
   const { toast, show: showToast }      = useToast();
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     else setRefreshing(true);
     try {
-      // 1. Fetch packages first
       const pkgs = await fetchPackages();
       setPackages(pkgs);
-
-      // 2. Fetch iFlows per package (BTP requires packageId)
       const [flows, runtime] = await Promise.all([
         fetchIFlows(pkgs),
         fetchRuntimeArtifacts(),
       ]);
-
-      // 3. Merge runtime status
       const statusMap = Object.fromEntries(
         runtime.map((r) => [
           r.id,
           { status: r.status?.toLowerCase() || "not deployed", deployedBy: r.deployedBy },
         ])
       );
-
       const merged = flows.map((f) => ({
         ...f,
         status: statusMap[f.id]?.status || "not deployed",
         deployedBy: statusMap[f.id]?.deployedBy || "-",
       }));
-
       setIFlows(merged);
     } catch (err) {
       showToast(`Failed to load: ${err.message}`, "error");
@@ -81,7 +76,42 @@ export default function App() {
   const handleDelete = async (id) => {
     await deleteIFlow(id);
     await load(true);
-    showToast("iFlow deleted.", "error");
+    showToast("iFlow undeployed successfully.", "success");
+  };
+
+  // ── Selection helpers ──────────────────────────────────────────────────────
+  const handleToggle = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleToggleAll = (visibleIflows) => {
+    const allSelected = visibleIflows.every(f => selected.has(f.id));
+    setSelected(prev => {
+      const next = new Set(prev);
+      visibleIflows.forEach(f => allSelected ? next.delete(f.id) : next.add(f.id));
+      return next;
+    });
+  };
+
+  const handleBulkConfirm = async (id) => {
+    if (bulkAction.action === "deploy") await deployIFlow(id);
+    else await deleteIFlow(id);
+  };
+
+  const handleBulkClose = () => {
+    setBulkAction(null);
+    setSelected(new Set());
+    setTimeout(() => load(true), bulkAction?.action === "deploy" ? 4000 : 1000);
+    showToast(
+      bulkAction?.action === "deploy"
+        ? "Bulk deploy triggered — statuses will update shortly."
+        : "iFlows undeployed successfully.",
+      bulkAction?.action === "deploy" ? "info" : "success"
+    );
   };
 
   const visible = iflows.filter((f) => {
@@ -100,6 +130,11 @@ export default function App() {
     error:       iflows.filter((f) => f.status === "error").length,
     notDeployed: iflows.filter((f) => f.status === "not deployed").length,
   };
+
+  // Selected iflows split by eligibility
+  const selectedIFlows    = iflows.filter(f => selected.has(f.id));
+  const deployableCount   = selectedIFlows.filter(f => f.status === "not deployed").length;
+  const undeployableCount = selectedIFlows.filter(f => f.status !== "not deployed").length;
 
   const inputStyle = {
     fontSize: 13, padding: "5px 10px", height: 32,
@@ -158,17 +193,71 @@ export default function App() {
           </span>
         </div>
 
+        {/* ── Bulk action bar — shown only when items are selected ── */}
+        {selected.size > 0 && (
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            background: "#E6F1FB", border: "1px solid #85B7EB",
+            borderRadius: 8, padding: "8px 14px", marginBottom: "0.75rem",
+          }}>
+            <span style={{ fontSize: 13, color: "#0C447C", fontWeight: 600 }}>
+              {selected.size} iFlow{selected.size !== 1 ? "s" : ""} selected
+            </span>
+            <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
+              <Button
+                variant="success"
+                style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
+                onClick={() => setBulkAction({ action: "deploy", iflows: selectedIFlows.filter(f => f.status === "not deployed") })}
+                disabled={deployableCount === 0}
+                title={deployableCount === 0 ? "No iFlows selected" : `Deploy ${deployableCount} iFlow${deployableCount !== 1 ? "s" : ""}`}
+              >
+                <Play size={12} /> Deploy {deployableCount}
+              </Button>
+              <Button
+                variant="danger"
+                style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
+                onClick={() => setBulkAction({ action: "undeploy", iflows: selectedIFlows.filter(f => f.status !== "not deployed") })}
+                disabled={undeployableCount === 0}
+                title={undeployableCount === 0 ? "None of the selected iFlows are deployed" : `Undeploy ${undeployableCount} iFlow${undeployableCount !== 1 ? "s" : ""}`}
+              >
+                <PowerOff size={12} /> Undeploy {undeployableCount}
+              </Button>
+              <Button
+                style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10, overflow: "hidden" }}>
           {loading
             ? <div style={{ textAlign: "center", padding: "3rem", color: "#6B6963" }}><Spinner size={24} /></div>
-            : <IFlowTable iflows={visible} onDeploy={setDeployTarget} onDelete={setDeleteTarget} />
+            : <IFlowTable
+                iflows={visible}
+                onDeploy={setDeployTarget}
+                onDelete={setDeleteTarget}
+                selected={selected}
+                onToggle={handleToggle}
+                onToggleAll={handleToggleAll}
+              />
           }
         </div>
       </main>
 
-      {showUpload && <UploadModal packages={packages} onUpload={handleUpload} onClose={() => setShowUpload(false)} />}
+      {showUpload  && <UploadModal packages={packages} onUpload={handleUpload} onClose={() => setShowUpload(false)} />}
       {deployTarget && <ConfirmDeployModal iflow={deployTarget} onConfirm={handleDeploy} onClose={() => setDeployTarget(null)} />}
       {deleteTarget && <ConfirmDeleteModal iflow={deleteTarget} onConfirm={handleDelete} onClose={() => setDeleteTarget(null)} />}
+      {bulkAction  && (
+        <ConfirmBulkModal
+          iflows={bulkAction.iflows}
+          action={bulkAction.action}
+          onConfirm={handleBulkConfirm}
+          onClose={handleBulkClose}
+        />
+      )}
 
       <Toast toast={toast} />
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
