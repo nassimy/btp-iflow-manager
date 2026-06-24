@@ -4,8 +4,6 @@ version: 1.0.0
 description: BTP Integration Suite iFlow Manager
 
 modules:
-
-  # ── 1. Backend API proxy ──────────────────────────────────────────────────────
   - name: btp-iflow-manager-srv
     type: nodejs
     path: proxy
@@ -14,7 +12,6 @@ modules:
       disk-quota: 512M
     build-parameters:
       builder: npm
-      supported-platforms: []
     requires:
       - name: btp-iflow-manager-xsuaa
       - name: btp-iflow-manager-destination
@@ -23,18 +20,13 @@ modules:
         properties:
           srv-url: ${default-url}
 
-  # ── 2. Approuter (serves React static files + proxies /api/* to backend) ──────
   - name: btp-iflow-manager-approuter
     type: approuter.nodejs
     path: approuter
     parameters:
       memory: 256M
       disk-quota: 512M
-    build-parameters:
-      builder: custom
-      commands:
-        - npm install
-      supported-platforms: []
+      keep-existing-routes: true
     requires:
       - name: btp-iflow-manager-xsuaa
       - name: btp-iflow-manager-destination
@@ -46,16 +38,13 @@ modules:
           forwardAuthToken: true
 
 resources:
-
-  # ── XSUAA ─────────────────────────────────────────────────────────────────────
   - name: btp-iflow-manager-xsuaa
     type: org.cloudfoundry.managed-service
     parameters:
       service: xsuaa
       service-plan: application
-      path: ./xs-security.json
+      path: xs-security.json
 
-  # ── Destination Service ───────────────────────────────────────────────────────
   - name: btp-iflow-manager-destination
     type: org.cloudfoundry.managed-service
     parameters:

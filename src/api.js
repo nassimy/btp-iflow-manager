@@ -1,10 +1,3 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// BTP Integration Suite — Real API client
-//
-// All calls go to the local proxy (http://localhost:3001).
-// The proxy handles OAuth tokens and CSRF tokens transparently.
-// ─────────────────────────────────────────────────────────────────────────────
-
 // Relative path works locally (proxied by React dev server) and on CF (routed by Approuter)
 const PROXY = "";
 
@@ -19,7 +12,6 @@ async function handleResponse(res) {
     }
     throw new Error(message);
   }
-  // 204 No Content (e.g. delete success) has no body
   if (res.status === 204) return {};
   return res.json();
 }
@@ -28,39 +20,29 @@ async function handleResponse(res) {
 export async function fetchPackages() {
   const res = await fetch(`${PROXY}/api/packages`);
   const data = await handleResponse(res);
-  // BTP OData wraps results in d.results
   return (data?.d?.results || []).map((p) => ({
     id: p.Id,
     name: p.Name,
   }));
 }
 
-// ── GET /IntegrationDesigntimeArtifacts (by package) ─────────────────────────
-export async function fetchIFlows(packageId) {
-  const url = packageId
-    ? `${PROXY}/api/iflows?packageId=${encodeURIComponent(packageId)}`
-    : `${PROXY}/api/iflows`;
-  const res = await fetch(url);
-  const data = await handleResponse(res);
-  return (data?.d?.results || []).map(mapIFlow);
-}
+// ── GET iFlows per package (loop over all packages) ───────────────────────────
+// BTP returns "Not Implemented" when calling /IntegrationDesigntimeArtifacts
+// without a packageId — so we fetch per package and merge.
+export async function fetchIFlows(packages) {
+  if (!packages || packages.length === 0) return [];
 
-// ── GET /IntegrationRuntimeArtifacts (merge runtime status into list) ─────────
-export async function fetchIFlowsWithStatus(packageId) {
-  const [iflows, runtime] = await Promise.all([
-    fetchIFlows(packageId),
-    fetchRuntimeArtifacts(),
-  ]);
-
-  const statusMap = Object.fromEntries(
-    runtime.map((r) => [r.id, { status: r.status, deployedBy: r.deployedBy }])
+  const results = await Promise.all(
+    packages.map(async (pkg) => {
+      const res = await fetch(
+        `${PROXY}/api/iflows?packageId=${encodeURIComponent(pkg.id)}`
+      );
+      const data = await handleResponse(res);
+      return (data?.d?.results || []).map((f) => mapIFlow(f, pkg.name));
+    })
   );
 
-  return iflows.map((f) => ({
-    ...f,
-    status: statusMap[f.id]?.status?.toLowerCase() || "not deployed",
-    deployedBy: statusMap[f.id]?.deployedBy || "-",
-  }));
+  return results.flat();
 }
 
 // ── GET /IntegrationRuntimeArtifacts ─────────────────────────────────────────
@@ -100,7 +82,7 @@ export async function uploadIFlow({ name, version, packageId, file }) {
     body: form,
   });
   const data = await handleResponse(res);
-  return mapIFlow(data?.d || data);
+  return mapIFlow(data?.d || data, packageId);
 }
 
 // ── DELETE /IntegrationDesigntimeArtifacts ────────────────────────────────────
@@ -113,14 +95,14 @@ export async function deleteIFlow(id, version = "Active") {
 }
 
 // ─── Internal mapper ──────────────────────────────────────────────────────────
-function mapIFlow(raw) {
+function mapIFlow(raw, packageName) {
   return {
     id: raw.Id,
     name: raw.Name,
     packageId: raw.PackageId,
-    packageName: raw.PackageId, // BTP doesn't return package name inline; we resolve it separately if needed
+    packageName: packageName || raw.PackageId,
     version: raw.Version,
-    status: "not deployed", // Runtime status comes from IntegrationRuntimeArtifacts
+    status: "not deployed",
     deployedBy: "-",
   };
 }

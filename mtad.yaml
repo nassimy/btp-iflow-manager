@@ -1,0 +1,16 @@
+_schema-version: "3.1"
+ID: btp-iflow-manager
+description: BTP Integration Suite iFlow Manager
+version: 1.0.0
+resources:
+- name: btp-iflow-manager-xsuaa
+  type: org.cloudfoundry.managed-service
+  parameters:
+    path: ./xs-security.json
+    service: xsuaa
+    service-plan: application
+- name: btp-iflow-manager-destination
+  type: org.cloudfoundry.managed-service
+  parameters:
+    service: destination
+    service-plan: lite
