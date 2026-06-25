@@ -183,6 +183,11 @@ app.get("/api/iflows/:id", (req, res) => {
   btpGet(`IntegrationDesigntimeArtifacts(Id='${req.params.id}',Version='${version}')?$format=json`, res);
 });
 
+app.get("/api/iflows/:id/configurations", (req, res) => {
+  const version = req.query.version || "Active";
+  btpGet(`IntegrationDesigntimeArtifacts(Id='${req.params.id}',Version='${version}')/Configurations?$format=json`, res);
+});
+
 app.get("/api/runtime", (req, res) =>
   btpGet("IntegrationRuntimeArtifacts?$format=json", res)
 );

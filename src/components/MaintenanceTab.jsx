@@ -213,7 +213,7 @@ function GroupCard({ group, iflows, onEdit, onDelete, onAction }) {
 }
 
 // ── Custom session (ad-hoc) ────────────────────────────────────────────────────
-function CustomTab({ iflows, session, setSession }) {
+function CustomTab({ iflows, session, setSession, onRefresh }) {
   const [selected, setSelected] = useState(new Set());
   const [excluded, setExcluded] = useState(new Set());
   const [bulkAction, setBulkAction] = useState(null);
@@ -366,8 +366,10 @@ function CustomTab({ iflows, session, setSession }) {
               const snap = { startedAt: new Date().toISOString(), iflows: bulkAction.iflows };
               setSession(snap); saveSession(snap);
               setSelected(new Set());
+              setTimeout(() => onRefresh(true), 1000);
             } else {
               setSession(null); clearSession(); setExcluded(new Set());
+              setTimeout(() => onRefresh(true), 4000);
             }
             setBulkAction(null);
           }}
@@ -393,7 +395,7 @@ function CustomTab({ iflows, session, setSession }) {
 }
 
 // ── Main Maintenance Tab ───────────────────────────────────────────────────────
-export function MaintenanceTab({ iflows }) {
+export function MaintenanceTab({ iflows, onRefresh }) {
   const [subTab, setSubTab]       = useState("groups");
   const [groups, setGroups]       = useState(() => loadGroups());
   const [session, setSession]     = useState(() => loadSession());
@@ -486,7 +488,7 @@ export function MaintenanceTab({ iflows }) {
 
       {/* ── Custom sub-tab ── */}
       {subTab === "custom" && (
-        <CustomTab iflows={iflows} session={session} setSession={setSession} />
+        <CustomTab iflows={iflows} session={session} setSession={setSession} onRefresh={onRefresh} />
       )}
 
       {/* ── Group editor modal ── */}
@@ -521,7 +523,11 @@ export function MaintenanceTab({ iflows }) {
           iflows={groupBulk.iflows}
           action={groupBulk.action}
           onConfirm={async (id) => { if (groupBulk.action === "undeploy") await deleteIFlow(id); else await deployIFlow(id); }}
-          onClose={() => setGroupBulk(null)}
+          onClose={() => {
+            setGroupBulk(null);
+            const delay = groupBulk?.action === "deploy" ? 4000 : 1000;
+            setTimeout(() => onRefresh(true), delay);
+          }}
         />
       )}
     </div>

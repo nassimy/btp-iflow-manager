@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Modal, ModalTitle, ModalActions } from "./Modal";
 import { Button, Spinner } from "./UI";
-import { Play, PowerOff } from "lucide-react";
+import { Play, PowerOff, RotateCcw } from "lucide-react";
 
 // ── Single Deploy ─────────────────────────────────────────────────────────────
 export function ConfirmDeployModal({ iflow, onConfirm, onClose }) {
@@ -25,6 +25,34 @@ export function ConfirmDeployModal({ iflow, onConfirm, onClose }) {
         <Button onClick={onClose} disabled={loading}>Cancel</Button>
         <Button variant="success" onClick={handle} disabled={loading}>
           {loading ? <><Spinner size={13} /> Deploying…</> : <><Play size={13} /> Deploy</>}
+        </Button>
+      </ModalActions>
+    </Modal>
+  );
+}
+
+// ── Single Redeploy ───────────────────────────────────────────────────────────
+export function ConfirmRedeployModal({ iflow, onConfirm, onClose }) {
+  const [loading, setLoading] = useState(false);
+  const handle = async () => {
+    setLoading(true);
+    await onConfirm(iflow.id);
+    setLoading(false);
+    onClose();
+  };
+  return (
+    <Modal onClose={onClose}>
+      <ModalTitle>Redeploy iFlow?</ModalTitle>
+      <p style={{ fontSize: 13, color: "#6B6963", marginBottom: "0.5rem" }}>
+        Redeploy <strong style={{ color: "#1A1A18" }}>{iflow.name}</strong> ({iflow.version})?
+      </p>
+      <p style={{ fontSize: 12, color: "#854F0B" }}>
+        The currently running instance will be stopped and restarted. There may be a brief interruption.
+      </p>
+      <ModalActions>
+        <Button onClick={onClose} disabled={loading}>Cancel</Button>
+        <Button variant="primary" onClick={handle} disabled={loading}>
+          {loading ? <><Spinner size={13} /> Redeploying…</> : <><RotateCcw size={13} /> Redeploy</>}
         </Button>
       </ModalActions>
     </Modal>
@@ -62,7 +90,7 @@ export function ConfirmDeleteModal({ iflow, onConfirm, onClose }) {
 // ── Bulk Action ───────────────────────────────────────────────────────────────
 export function ConfirmBulkModal({ iflows, action, onConfirm, onClose }) {
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(null); // "2 / 5"
+  const [progress, setProgress] = useState(null);
 
   const isDeploy = action === "deploy";
 
@@ -86,23 +114,14 @@ export function ConfirmBulkModal({ iflows, action, onConfirm, onClose }) {
         The following iFlows will be <strong>{isDeploy ? "deployed to" : "undeployed from"}</strong> the runtime:
       </p>
 
-      {/* iFlow list */}
-      <div style={{
-        maxHeight: 200, overflowY: "auto",
-        border: "1px solid #ECEAE3", borderRadius: 8,
-        marginBottom: "0.75rem",
-      }}>
+      <div style={{ maxHeight: 200, overflowY: "auto", border: "1px solid #ECEAE3", borderRadius: 8, marginBottom: "0.75rem" }}>
         {iflows.map((f, i) => (
           <div key={f.id} style={{
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "7px 12px",
+            display: "flex", alignItems: "center", gap: 10, padding: "7px 12px",
             borderBottom: i < iflows.length - 1 ? "1px solid #ECEAE3" : "none",
             background: i % 2 === 0 ? "#fff" : "#FAFAF8",
           }}>
-            <span style={{
-              width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-              background: isDeploy ? "#97C459" : "#F09595",
-            }} />
+            <span style={{ width: 8, height: 8, borderRadius: "50%", flexShrink: 0, background: isDeploy ? "#97C459" : "#F09595" }} />
             <div>
               <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A18" }}>{f.name}</div>
               <div style={{ fontSize: 11, color: "#9B9890", fontFamily: "monospace" }}>{f.id}</div>
@@ -117,7 +136,6 @@ export function ConfirmBulkModal({ iflows, action, onConfirm, onClose }) {
         </p>
       )}
 
-      {/* Progress bar */}
       {loading && progress && (
         <div style={{ marginBottom: "0.75rem" }}>
           <div style={{ fontSize: 12, color: "#6B6963", marginBottom: 4 }}>
@@ -146,3 +164,4 @@ export function ConfirmBulkModal({ iflows, action, onConfirm, onClose }) {
     </Modal>
   );
 }
+

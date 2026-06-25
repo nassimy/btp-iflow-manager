@@ -26,12 +26,9 @@ export async function fetchPackages() {
   }));
 }
 
-// ── GET iFlows per package (loop over all packages) ───────────────────────────
-// BTP returns "Not Implemented" when calling /IntegrationDesigntimeArtifacts
-// without a packageId — so we fetch per package and merge.
+// ── GET iFlows per package ────────────────────────────────────────────────────
 export async function fetchIFlows(packages) {
   if (!packages || packages.length === 0) return [];
-
   const results = await Promise.all(
     packages.map(async (pkg) => {
       const res = await fetch(
@@ -41,7 +38,6 @@ export async function fetchIFlows(packages) {
       return (data?.d?.results || []).map((f) => mapIFlow(f, pkg.name));
     })
   );
-
   return results.flat();
 }
 
@@ -60,6 +56,41 @@ export async function fetchRuntimeArtifacts() {
   }));
 }
 
+// ── GET single iFlow detail ───────────────────────────────────────────────────
+export async function fetchIFlowDetail(id) {
+  const res = await fetch(`${PROXY}/api/iflows/${encodeURIComponent(id)}`);
+  const data = await handleResponse(res);
+  return data?.d || null;
+}
+
+// ── GET iFlow configuration parameters ───────────────────────────────────────
+export async function fetchIFlowConfigurations(id) {
+  const res = await fetch(`${PROXY}/api/iflows/${encodeURIComponent(id)}/configurations`);
+  const data = await handleResponse(res);
+  return (data?.d?.results || []).map((c) => ({
+    key:          c.ParameterKey,
+    value:        c.ParameterValue,
+    type:         c.DataType,
+  }));
+}
+
+// ── GET runtime detail for single iFlow ──────────────────────────────────────
+export async function fetchRuntimeDetail(id) {
+  const res = await fetch(`${PROXY}/api/runtime/${encodeURIComponent(id)}`);
+  if (res.status === 404) return null;
+  const data = await handleResponse(res);
+  const r = data?.d || null;
+  if (!r) return null;
+  return {
+    id:          r.Id,
+    status:      r.Status,
+    version:     r.Version,
+    deployedBy:  r.DeployedBy,
+    deployedOn:  r.DeployedOn,
+    errorInfo:   r.ErrorInformation?.Parameter || null,
+  };
+}
+
 // ── POST /DeployIntegrationDesigntimeArtifact ─────────────────────────────────
 export async function deployIFlow(id, version = "Active") {
   const res = await fetch(
@@ -69,26 +100,10 @@ export async function deployIFlow(id, version = "Active") {
   return handleResponse(res);
 }
 
-// ── POST /IntegrationDesigntimeArtifacts (upload zip) ────────────────────────
-export async function uploadIFlow({ name, version, packageId, file }) {
-  const form = new FormData();
-  form.append("name", name);
-  form.append("version", version);
-  form.append("packageId", packageId);
-  form.append("file", file, file.name);
-
-  const res = await fetch(`${PROXY}/api/iflows`, {
-    method: "POST",
-    body: form,
-  });
-  const data = await handleResponse(res);
-  return mapIFlow(data?.d || data, packageId);
-}
-
-// ── DELETE /IntegrationDesigntimeArtifacts ────────────────────────────────────
-export async function deleteIFlow(id, version = "Active") {
+// ── DELETE /IntegrationRuntimeArtifacts (undeploy) ───────────────────────────
+export async function deleteIFlow(id) {
   const res = await fetch(
-    `${PROXY}/api/iflows/${encodeURIComponent(id)}?version=${encodeURIComponent(version)}`,
+    `${PROXY}/api/iflows/${encodeURIComponent(id)}`,
     { method: "DELETE" }
   );
   return handleResponse(res);

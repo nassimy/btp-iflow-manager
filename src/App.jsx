@@ -1,12 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
-import { fetchPackages, fetchIFlows, fetchRuntimeArtifacts, uploadIFlow, deployIFlow, deleteIFlow } from "./api";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { fetchPackages, fetchIFlows, fetchRuntimeArtifacts, deployIFlow, deleteIFlow } from "./api";
 import { IFlowTable } from "./components/IFlowTable";
-import { UploadModal } from "./components/UploadModal";
-import { ConfirmDeployModal, ConfirmDeleteModal, ConfirmBulkModal } from "./components/ConfirmModal";
+import { IFlowDetailPanel } from "./components/IFlowDetailPanel";
+import { ConfirmDeployModal, ConfirmDeleteModal, ConfirmRedeployModal, ConfirmBulkModal } from "./components/ConfirmModal";
 import { MaintenanceTab } from "./components/MaintenanceTab";
 import { Button, Spinner } from "./components/UI";
 import { Toast, useToast } from "./components/Toast";
-import { Upload, RefreshCw, Play, PowerOff, Wrench, LayoutDashboard } from "lucide-react";
+import { RefreshCw, Play, PowerOff, Wrench, LayoutDashboard, Timer } from "lucide-react";
 
 const STAT_CARDS = [
   { label: "Total",        key: "total",       color: "#1A1A18" },
@@ -16,27 +16,39 @@ const STAT_CARDS = [
 ];
 
 const TABS = [
-  { id: "dashboard",    label: "Dashboard",    icon: LayoutDashboard },
-  { id: "maintenance",  label: "Maintenance",  icon: Wrench },
+  { id: "dashboard",   label: "Dashboard",   icon: LayoutDashboard },
+  { id: "maintenance", label: "Maintenance", icon: Wrench },
+];
+
+const AUTO_REFRESH_INTERVALS = [
+  { label: "30s", value: 30 },
+  { label: "60s", value: 60 },
+  { label: "2m",  value: 120 },
+  { label: "5m",  value: 300 },
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab]       = useState("dashboard");
-  const [packages, setPackages]         = useState([]);
-  const [iflows, setIFlows]             = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [refreshing, setRefreshing]     = useState(false);
-  const [search, setSearch]             = useState("");
-  const [pkgFilter, setPkgFilter]       = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
-  const [showUpload, setShowUpload]     = useState(false);
-  const [deployTarget, setDeployTarget] = useState(null);
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [selected, setSelected]         = useState(new Set());
-  const [bulkAction, setBulkAction]     = useState(null);
-  const { toast, show: showToast }      = useToast();
+  const [activeTab, setActiveTab]         = useState("dashboard");
+  const [packages, setPackages]           = useState([]);
+  const [iflows, setIFlows]               = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [refreshing, setRefreshing]       = useState(false);
+  const [search, setSearch]               = useState("");
+  const [pkgFilter, setPkgFilter]         = useState("");
+  const [statusFilter, setStatusFilter]   = useState("");
+  const [deployTarget, setDeployTarget]   = useState(null);
+  const [deleteTarget, setDeleteTarget]   = useState(null);
+  const [redeployTarget, setRedeployTarget] = useState(null);
+  const [detailTarget, setDetailTarget]     = useState(null);
+  const [selected, setSelected]           = useState(new Set());
+  const [bulkAction, setBulkAction]       = useState(null);
+  const [autoRefresh, setAutoRefresh]     = useState(false);
+  const [autoInterval, setAutoInterval]   = useState(30);
+  const [countdown, setCountdown]         = useState(0);
+  const autoRefreshRef                    = useRef(null);
+  const countdownRef                      = useRef(null);
+  const { toast, show: showToast }        = useToast();
 
-  // Check if a maintenance session is active (for tab badge)
   const hasMaintenanceSession = !!localStorage.getItem("iflow_maintenance_session");
 
   const load = useCallback(async (silent = false) => {
@@ -71,16 +83,43 @@ export default function App() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleUpload = async (data) => {
-    await uploadIFlow(data);
-    await load(true);
-    showToast(`"${data.name}" uploaded successfully.`, "success");
-  };
+  // ── Auto-refresh ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    // Clear existing intervals
+    clearInterval(autoRefreshRef.current);
+    clearInterval(countdownRef.current);
 
+    if (!autoRefresh) { setCountdown(0); return; }
+
+    setCountdown(autoInterval);
+
+    // Countdown ticker
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => (prev <= 1 ? autoInterval : prev - 1));
+    }, 1000);
+
+    // Data refresh
+    autoRefreshRef.current = setInterval(() => {
+      load(true);
+    }, autoInterval * 1000);
+
+    return () => {
+      clearInterval(autoRefreshRef.current);
+      clearInterval(countdownRef.current);
+    };
+  }, [autoRefresh, autoInterval, load]);
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
   const handleDeploy = async (id) => {
     await deployIFlow(id);
     setTimeout(() => load(true), 3000);
     showToast("Deploy triggered — status will update shortly.", "info");
+  };
+
+  const handleRedeploy = async (id) => {
+    await deployIFlow(id);
+    setTimeout(() => load(true), 3000);
+    showToast("Redeploy triggered — status will update shortly.", "info");
   };
 
   const handleDelete = async (id) => {
@@ -136,10 +175,10 @@ export default function App() {
   });
 
   const stats = {
-    total:       iflows.length,
-    started:     iflows.filter((f) => f.status === "started").length,
-    error:       iflows.filter((f) => f.status === "error").length,
-    notDeployed: iflows.filter((f) => f.status === "not deployed").length,
+    total:       visible.length,
+    started:     visible.filter((f) => f.status === "started").length,
+    error:       visible.filter((f) => f.status === "error").length,
+    notDeployed: visible.filter((f) => f.status === "not deployed").length,
   };
 
   const selectedIFlows    = iflows.filter(f => selected.has(f.id));
@@ -167,22 +206,48 @@ export default function App() {
           <span style={{ fontSize: 11, color: "#9B9890", fontWeight: 500 }}>BTP Integration Suite</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+
+          {/* ── Auto-refresh controls ── */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 10px", height: 32, borderRadius: 7, border: "1px solid #D8D6CF", background: autoRefresh ? "#E6F1FB" : "#fff" }}>
+            <Timer size={13} color={autoRefresh ? "#0C447C" : "#9B9890"} />
+            <span style={{ fontSize: 12, color: autoRefresh ? "#0C447C" : "#6B6963", fontWeight: 500 }}>Auto</span>
+            <select
+              value={autoInterval}
+              onChange={e => setAutoInterval(Number(e.target.value))}
+              style={{ fontSize: 12, border: "none", background: "transparent", color: autoRefresh ? "#0C447C" : "#6B6963", fontFamily: "inherit", cursor: "pointer", outline: "none" }}
+            >
+              {AUTO_REFRESH_INTERVALS.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
+            </select>
+            {/* Toggle switch */}
+            <div
+              onClick={() => setAutoRefresh(p => !p)}
+              style={{
+                width: 32, height: 18, borderRadius: 9, cursor: "pointer", position: "relative",
+                background: autoRefresh ? "#0C447C" : "#D8D6CF", transition: "background 0.2s",
+              }}
+            >
+              <div style={{
+                position: "absolute", top: 2, left: autoRefresh ? 14 : 2,
+                width: 14, height: 14, borderRadius: "50%", background: "#fff",
+                transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+              }} />
+            </div>
+            {autoRefresh && (
+              <span style={{ fontSize: 11, color: "#0C447C", fontWeight: 600, minWidth: 20 }}>{countdown}s</span>
+            )}
+          </div>
+
           <Button onClick={() => load(true)} disabled={refreshing}>
             <RefreshCw size={13} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
             Refresh
           </Button>
-          {activeTab === "dashboard" && (
-            <Button variant="primary" onClick={() => setShowUpload(true)}>
-              <Upload size={13} /> Upload iFlow
-            </Button>
-          )}
         </div>
       </header>
 
       {/* ── Tab bar ── */}
       <div style={{ background: "#fff", borderBottom: "1px solid #ECEAE3", padding: "0 2rem", display: "flex", gap: 0 }}>
         {TABS.map(({ id, label, icon: Icon }) => {
-          const isActive = activeTab === id;
+          const isActive  = activeTab === id;
           const showBadge = id === "maintenance" && hasMaintenanceSession;
           return (
             <button
@@ -199,12 +264,7 @@ export default function App() {
             >
               <Icon size={14} />
               {label}
-              {showBadge && (
-                <span style={{
-                  width: 7, height: 7, borderRadius: "50%",
-                  background: "#E8A600", position: "absolute", top: 10, right: -6,
-                }} />
-              )}
+              {showBadge && <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#E8A600", position: "absolute", top: 10, right: -6 }} />}
             </button>
           );
         })}
@@ -276,13 +336,15 @@ export default function App() {
             </div>
           )}
 
-          <div style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10, overflow: "hidden" }}>
+          <div style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10 }}>
             {loading
               ? <div style={{ textAlign: "center", padding: "3rem", color: "#6B6963" }}><Spinner size={24} /></div>
               : <IFlowTable
                   iflows={visible}
                   onDeploy={setDeployTarget}
                   onDelete={setDeleteTarget}
+                  onRedeploy={setRedeployTarget}
+                  onDetail={setDetailTarget}
                   selected={selected}
                   onToggle={handleToggle}
                   onToggleAll={handleToggleAll}
@@ -294,13 +356,14 @@ export default function App() {
 
       {/* ── Maintenance tab ── */}
       {activeTab === "maintenance" && (
-        <MaintenanceTab iflows={iflows} />
+        <MaintenanceTab iflows={iflows} onRefresh={load} />
       )}
 
-      {showUpload   && <UploadModal packages={packages} onUpload={handleUpload} onClose={() => setShowUpload(false)} />}
-      {deployTarget && <ConfirmDeployModal iflow={deployTarget} onConfirm={handleDeploy} onClose={() => setDeployTarget(null)} />}
-      {deleteTarget && <ConfirmDeleteModal iflow={deleteTarget} onConfirm={handleDelete} onClose={() => setDeleteTarget(null)} />}
-      {bulkAction   && (
+      {deployTarget   && <ConfirmDeployModal   iflow={deployTarget}   onConfirm={handleDeploy}   onClose={() => setDeployTarget(null)} />}
+      {redeployTarget && <ConfirmRedeployModal iflow={redeployTarget} onConfirm={handleRedeploy} onClose={() => setRedeployTarget(null)} />}
+      {deleteTarget   && <ConfirmDeleteModal   iflow={deleteTarget}   onConfirm={handleDelete}   onClose={() => setDeleteTarget(null)} />}
+      {detailTarget   && <IFlowDetailPanel     iflow={detailTarget}                              onClose={() => setDetailTarget(null)} />}
+      {bulkAction     && (
         <ConfirmBulkModal
           iflows={bulkAction.iflows}
           action={bulkAction.action}
