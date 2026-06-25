@@ -4,6 +4,43 @@ version: 1.0.0
 description: BTP Integration Suite iFlow Manager
 
 modules:
+
+  # ── React frontend served via Approuter ──────────────────────────────────────
+  - name: btp-iflow-manager-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+      keep-existing-routes: true
+    build-parameters:
+      requires:
+        - name: btp-iflow-manager-ui
+    requires:
+      - name: btp-iflow-manager-xsuaa
+      - name: btp-iflow-manager-destination
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
+    provides:
+      - name: approuter-url
+        properties:
+          app-url: ${default-url}
+
+  # ── React UI build ────────────────────────────────────────────────────────────
+  - name: btp-iflow-manager-ui
+    type: html5
+    path: .
+    build-parameters:
+      builder: custom
+      commands:
+        - bash build-ui.sh
+      supported-platforms: []
+
+  # ── Node.js proxy / backend ───────────────────────────────────────────────────
   - name: btp-iflow-manager-srv
     type: nodejs
     path: proxy
@@ -20,24 +57,9 @@ modules:
         properties:
           srv-url: ${default-url}
 
-  - name: btp-iflow-manager-approuter
-    type: approuter.nodejs
-    path: approuter
-    parameters:
-      memory: 256M
-      disk-quota: 512M
-      keep-existing-routes: true
-    requires:
-      - name: btp-iflow-manager-xsuaa
-      - name: btp-iflow-manager-destination
-      - name: srv-api
-        group: destinations
-        properties:
-          name: srv-api
-          url: ~{srv-url}
-          forwardAuthToken: true
-
 resources:
+
+  # ── XSUAA (authentication) ────────────────────────────────────────────────────
   - name: btp-iflow-manager-xsuaa
     type: org.cloudfoundry.managed-service
     parameters:
@@ -45,8 +67,15 @@ resources:
       service-plan: application
       path: xs-security.json
 
+  # ── Destination service ───────────────────────────────────────────────────────
   - name: btp-iflow-manager-destination
     type: org.cloudfoundry.managed-service
     parameters:
       service: destination
       service-plan: lite
+
+  # ── Process Integration Runtime (existing instance) ──────────────────────────
+  - name: iflow-runtime-api
+    type: org.cloudfoundry.existing-service
+    parameters:
+      service-name: is-api-instance
