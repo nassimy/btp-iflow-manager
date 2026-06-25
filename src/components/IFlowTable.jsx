@@ -173,7 +173,6 @@ export function IFlowTable({ iflows, onDeploy, onDelete, onRedeploy, onDetail, s
                 />
               </TH>
               <SortTH label="Name / ID"   sortId="name" />
-              <SortTH label="Package"     sortId="packageName" />
               <SortTH label="Version"     sortId="version" />
               <SortTH label="Status"      sortId="status" />
               <TH>Deployed by</TH>
@@ -206,11 +205,6 @@ export function IFlowTable({ iflows, onDeploy, onDelete, onRedeploy, onDetail, s
                       {f.name}
                     </div>
                     <div style={{ fontSize: 11, color: "#9B9890", marginTop: 1, fontFamily: "monospace" }}>{f.id}</div>
-                  </TD>
-                  <TD>
-                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: "#ECEAE3", color: "#444441", fontWeight: 500 }}>
-                      {f.packageName}
-                    </span>
                   </TD>
                   <TD><span style={{ fontFamily: "monospace", fontSize: 12, color: "#6B6963" }}>{f.version}</span></TD>
                   <TD><StatusBadge status={f.status} /></TD>
