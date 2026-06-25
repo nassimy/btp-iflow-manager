@@ -60,7 +60,9 @@ export async function fetchRuntimeArtifacts() {
 export async function fetchIFlowDetail(id) {
   const res = await fetch(`${PROXY}/api/iflows/${encodeURIComponent(id)}`);
   const data = await handleResponse(res);
-  return data?.d || null;
+  const d = data?.d || null;
+  if (!d) return null;
+  return { ...d, Version: (d.Version || "").trim() };
 }
 
 // ── GET iFlow configuration parameters ───────────────────────────────────────
@@ -82,12 +84,12 @@ export async function fetchRuntimeDetail(id) {
   const r = data?.d || null;
   if (!r) return null;
   return {
-    id:          r.Id,
-    status:      r.Status,
-    version:     r.Version,
-    deployedBy:  r.DeployedBy,
-    deployedOn:  r.DeployedOn,
-    errorInfo:   r.ErrorInformation?.Parameter || null,
+    id:         r.Id,
+    status:     r.Status,
+    version:    (r.Version || "").trim(),
+    deployedBy: r.DeployedBy,
+    deployedOn: r.DeployedOn,
+    errorInfo:  r.ErrorInformation?.Parameter || null,
   };
 }
 

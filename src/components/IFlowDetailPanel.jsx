@@ -143,7 +143,11 @@ export function IFlowDetailPanel({ iflow, onClose }) {
               {activeTab === "overview" && (
                 <>
                   {/* Version mismatch warning */}
-                  {runtime && detail?.Version && runtime.version && detail.Version !== runtime.version && (
+                  {(() => {
+                    const dv = (detail?.Version || iflow.version || "").trim();
+                    const rv = (runtime?.version || "").trim();
+                    console.log("[detail] design version:", JSON.stringify(dv), "runtime version:", JSON.stringify(rv), "match:", dv === rv);
+                    return runtime && dv && rv && dv !== rv ? (
                     <div style={{
                       display: "flex", gap: 10, alignItems: "flex-start",
                       background: "#FAEEDA", border: "1px solid #E8C97A",
@@ -153,16 +157,17 @@ export function IFlowDetailPanel({ iflow, onClose }) {
                       <div>
                         <div style={{ fontSize: 12, fontWeight: 700, color: "#633806", marginBottom: 2 }}>Version mismatch</div>
                         <div style={{ fontSize: 12, color: "#854F0B" }}>
-                          Design version <strong>{detail.Version}</strong> differs from deployed runtime version <strong>{runtime.version}</strong>. Redeploy to sync them.
+                          Design version <strong>{dv}</strong> differs from deployed runtime version <strong>{rv}</strong>. Redeploy to sync them.
                         </div>
                       </div>
                     </div>
-                  )}
+                    ) : null;
+                  })()}
 
                   <Section title="Details" icon={Info}>
                     <Field label="Name"        value={iflow.name} />
                     <Field label="ID"          value={iflow.id} mono />
-                    <Field label="Design version"  value={detail?.Version || iflow.version} mono />
+                    <Field label="Design version" value={(detail?.Version || iflow.version || "").trim()} mono />
                     <Field label="Package"     value={iflow.packageName} />
                     <Field label="Package ID"  value={iflow.packageId} mono />
                     <Field label="Description" value={detail?.Description} />

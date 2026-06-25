@@ -180,7 +180,14 @@ app.get("/api/iflows", (req, res) => {
 
 app.get("/api/iflows/:id", (req, res) => {
   const version = req.query.version || "Active";
-  btpGet(`IntegrationDesigntimeArtifacts(Id='${req.params.id}',Version='${version}')?$format=json`, res);
+  const id = encodeURIComponent(req.params.id);
+  btpGet(`IntegrationDesigntimeArtifacts(Id=%27${id}%27,Version=%27${version}%27)?$format=json`, res);
+});
+
+app.get("/api/iflows/:id/configurations", (req, res) => {
+  const version = req.query.version || "Active";
+  const id = encodeURIComponent(req.params.id);
+  btpGet(`IntegrationDesigntimeArtifacts(Id=%27${id}%27,Version=%27${version}%27)/Configurations?$format=json`, res);
 });
 
 app.get("/api/runtime", (req, res) =>
