@@ -79,11 +79,11 @@ export function IFlowDetailPanel({ iflow, onClose }) {
         onClick={onClose}
         style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center" }}
       >
-      {/* Modal */}
+      {/* Modal — fixed size so it never shrinks with less content */}
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: 560, maxWidth: "95vw", maxHeight: "88vh",
+          width: 560, maxWidth: "95vw", height: "80vh",
           background: "#fff", borderRadius: 12,
           boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
           border: "1px solid #E0DED8",
@@ -142,10 +142,27 @@ export function IFlowDetailPanel({ iflow, onClose }) {
               {/* ── Overview tab ── */}
               {activeTab === "overview" && (
                 <>
+                  {/* Version mismatch warning */}
+                  {runtime && detail?.Version && runtime.version && detail.Version !== runtime.version && (
+                    <div style={{
+                      display: "flex", gap: 10, alignItems: "flex-start",
+                      background: "#FAEEDA", border: "1px solid #E8C97A",
+                      borderRadius: 8, padding: "10px 12px", marginBottom: "1rem",
+                    }}>
+                      <AlertTriangle size={15} color="#854F0B" style={{ flexShrink: 0, marginTop: 1 }} />
+                      <div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: "#633806", marginBottom: 2 }}>Version mismatch</div>
+                        <div style={{ fontSize: 12, color: "#854F0B" }}>
+                          Design version <strong>{detail.Version}</strong> differs from deployed runtime version <strong>{runtime.version}</strong>. Redeploy to sync them.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <Section title="Details" icon={Info}>
                     <Field label="Name"        value={iflow.name} />
                     <Field label="ID"          value={iflow.id} mono />
-                    <Field label="Version"     value={detail?.Version || iflow.version} mono />
+                    <Field label="Design version"  value={detail?.Version || iflow.version} mono />
                     <Field label="Package"     value={iflow.packageName} />
                     <Field label="Package ID"  value={iflow.packageId} mono />
                     <Field label="Description" value={detail?.Description} />
@@ -154,9 +171,9 @@ export function IFlowDetailPanel({ iflow, onClose }) {
                   <Section title="Runtime" icon={Clock}>
                     {runtime ? (
                       <>
-                        <Field label="Status"      value={<StatusBadge status={iflow.status} />} />
-                        <Field label="Deployed by" value={runtime.deployedBy} />
-                        <Field label="Deployed on" value={formatDate(runtime.deployedOn)} />
+                        <Field label="Status"          value={<StatusBadge status={iflow.status} />} />
+                        <Field label="Deployed by"     value={runtime.deployedBy} />
+                        <Field label="Deployed on"     value={formatDate(runtime.deployedOn)} />
                         <Field label="Runtime version" value={runtime.version} mono />
                       </>
                     ) : (
