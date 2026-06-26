@@ -73,9 +73,3 @@ resources:
     parameters:
       service: destination
       service-plan: lite
-
-  # ── Process Integration Runtime (existing instance) ──────────────────────────
-  - name: iflow-runtime-api
-    type: org.cloudfoundry.existing-service
-    parameters:
-      service-name: is-api-instance
