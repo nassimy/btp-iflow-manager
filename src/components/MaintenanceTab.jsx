@@ -142,7 +142,7 @@ function GroupEditorModal({ group, iflows, onSave, onClose }) {
 }
 
 // ── Group Card ─────────────────────────────────────────────────────────────────
-function GroupCard({ group, iflows, onEdit, onDelete, onAction }) {
+function GroupCard({ group, iflows, onEdit, onDelete, onAction, canDeploy, canManage }) {
   const groupIFlows   = iflows.filter(f => group.iflowIds.includes(f.id));
   const deployed      = groupIFlows.filter(f => f.status !== "not deployed");
   const notDeployed   = groupIFlows.filter(f => f.status === "not deployed");
@@ -163,12 +163,16 @@ function GroupCard({ group, iflows, onEdit, onDelete, onAction }) {
           </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          <Button style={{ height: 26, padding: "2px 8px", fontSize: 11 }} onClick={() => onEdit(group)}>
-            <Pencil size={11} /> Edit
-          </Button>
-          <Button variant="danger" style={{ height: 26, padding: "2px 8px", fontSize: 11 }} onClick={() => onDelete(group.id)}>
-            <Trash2 size={11} />
-          </Button>
+          {canManage && (
+            <Button style={{ height: 26, padding: "2px 8px", fontSize: 11 }} onClick={() => onEdit(group)}>
+              <Pencil size={11} /> Edit
+            </Button>
+          )}
+          {canManage && (
+            <Button variant="danger" style={{ height: 26, padding: "2px 8px", fontSize: 11 }} onClick={() => onDelete(group.id)}>
+              <Trash2 size={11} />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -189,31 +193,35 @@ function GroupCard({ group, iflows, onEdit, onDelete, onAction }) {
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8 }}>
-        <Button
-          variant="danger"
-          style={{ flex: 1, justifyContent: "center", height: 30, fontSize: 12 }}
-          disabled={deployed.length === 0}
-          title={deployed.length === 0 ? "No iFlows are deployed" : `Undeploy ${deployed.length} iFlow${deployed.length !== 1 ? "s" : ""}`}
-          onClick={() => onAction({ action: "undeploy", iflows: deployed, groupName: group.name })}
-        >
-          <PowerOff size={12} /> Undeploy {deployed.length > 0 ? deployed.length : ""}
-        </Button>
-        <Button
-          variant="success"
-          style={{ flex: 1, justifyContent: "center", height: 30, fontSize: 12 }}
-          disabled={notDeployed.length === 0}
-          title={notDeployed.length === 0 ? "All iFlows are already deployed" : `Restore ${notDeployed.length} iFlow${notDeployed.length !== 1 ? "s" : ""}`}
-          onClick={() => onAction({ action: "deploy", iflows: notDeployed, groupName: group.name })}
-        >
-          <Play size={12} /> Restore {notDeployed.length > 0 ? notDeployed.length : ""}
-        </Button>
+        {canManage && (
+          <Button
+            variant="danger"
+            style={{ flex: 1, justifyContent: "center", height: 30, fontSize: 12 }}
+            disabled={deployed.length === 0}
+            title={deployed.length === 0 ? "No iFlows are deployed" : `Undeploy ${deployed.length} iFlow${deployed.length !== 1 ? "s" : ""}`}
+            onClick={() => onAction({ action: "undeploy", iflows: deployed, groupName: group.name })}
+          >
+            <PowerOff size={12} /> Undeploy {deployed.length > 0 ? deployed.length : ""}
+          </Button>
+        )}
+        {canDeploy && (
+          <Button
+            variant="success"
+            style={{ flex: 1, justifyContent: "center", height: 30, fontSize: 12 }}
+            disabled={notDeployed.length === 0}
+            title={notDeployed.length === 0 ? "All iFlows are already deployed" : `Restore ${notDeployed.length} iFlow${notDeployed.length !== 1 ? "s" : ""}`}
+            onClick={() => onAction({ action: "deploy", iflows: notDeployed, groupName: group.name })}
+          >
+            <Play size={12} /> Restore {notDeployed.length > 0 ? notDeployed.length : ""}
+          </Button>
+        )}
       </div>
     </div>
   );
 }
 
 // ── Custom session (ad-hoc) ────────────────────────────────────────────────────
-function CustomTab({ iflows, session, setSession, onRefresh }) {
+function CustomTab({ iflows, session, setSession, onRefresh, canDeploy, canManage }) {
   const [selected, setSelected] = useState(new Set());
   const [excluded, setExcluded] = useState(new Set());
   const [bulkAction, setBulkAction] = useState(null);
@@ -259,9 +267,11 @@ function CustomTab({ iflows, session, setSession, onRefresh }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <Button variant="success" onClick={() => setBulkAction({ action: "deploy", iflows: restoreIFlows })} disabled={restoreIFlows.length === 0}>
-                <RotateCcw size={13} /> Restore {restoreIFlows.length > 0 ? restoreIFlows.length : ""}
-              </Button>
+              {canDeploy && (
+                <Button variant="success" onClick={() => setBulkAction({ action: "deploy", iflows: restoreIFlows })} disabled={restoreIFlows.length === 0}>
+                  <RotateCcw size={13} /> Restore {restoreIFlows.length > 0 ? restoreIFlows.length : ""}
+                </Button>
+              )}
               <Button variant="danger" onClick={() => setShowCancel(true)}><X size={13} /> Cancel Session</Button>
             </div>
           </div>
@@ -305,9 +315,11 @@ function CustomTab({ iflows, session, setSession, onRefresh }) {
             <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#E6F1FB", border: "1px solid #85B7EB", borderRadius: 8, padding: "8px 14px", marginBottom: "0.75rem" }}>
               <span style={{ fontSize: 13, color: "#0C447C", fontWeight: 600 }}>{selected.size} iFlow{selected.size !== 1 ? "s" : ""} selected</span>
               <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                <Button variant="danger" style={{ height: 28, padding: "4px 12px", fontSize: 12 }} onClick={() => setBulkAction({ action: "undeploy", iflows: selectedIFlows })}>
-                  <PowerOff size={12} /> Start Maintenance
-                </Button>
+                {canManage && (
+                  <Button variant="danger" style={{ height: 28, padding: "4px 12px", fontSize: 12 }} onClick={() => setBulkAction({ action: "undeploy", iflows: selectedIFlows })}>
+                    <PowerOff size={12} /> Start Maintenance
+                  </Button>
+                )}
                 <Button style={{ height: 28, padding: "4px 10px", fontSize: 12 }} onClick={() => setSelected(new Set())}>Clear</Button>
               </div>
             </div>
@@ -395,7 +407,7 @@ function CustomTab({ iflows, session, setSession, onRefresh }) {
 }
 
 // ── Main Maintenance Tab ───────────────────────────────────────────────────────
-export function MaintenanceTab({ iflows, onRefresh }) {
+export function MaintenanceTab({ iflows, onRefresh, canDeploy, canManage }) {
   const [subTab, setSubTab]       = useState("groups");
   const [groups, setGroups]       = useState(() => loadGroups());
   const [session, setSession]     = useState(() => loadSession());
@@ -433,7 +445,7 @@ export function MaintenanceTab({ iflows, onRefresh }) {
           <p style={{ fontSize: 13, color: "#6B6963" }}>Undeploy iFlows for maintenance and restore them when done.</p>
         </div>
         {subTab === "groups" && (
-          <Button variant="primary" onClick={() => setEditing("new")}>
+          <Button variant="primary" onClick={() => setEditing("new")} disabled={!canManage} title={!canManage ? "You need the Administrator role to create groups" : undefined}>
             <Plus size={13} /> New Group
           </Button>
         )}
@@ -467,7 +479,7 @@ export function MaintenanceTab({ iflows, onRefresh }) {
               <Users size={36} style={{ marginBottom: 12, opacity: 0.4 }} />
               <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>No groups yet</div>
               <div style={{ fontSize: 13, marginBottom: 16 }}>Create a group to quickly undeploy and restore a set of iFlows.</div>
-              <Button variant="primary" onClick={() => setEditing("new")}><Plus size={13} /> New Group</Button>
+              <Button variant="primary" onClick={() => setEditing("new")} disabled={!canManage} title={!canManage ? "You need the Administrator role to create groups" : undefined}><Plus size={13} /> New Group</Button>
             </div>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: 16 }}>
@@ -479,6 +491,8 @@ export function MaintenanceTab({ iflows, onRefresh }) {
                   onEdit={setEditing}
                   onDelete={setDeleteGroupId}
                   onAction={setGroupBulk}
+                  canDeploy={canDeploy}
+                  canManage={canManage}
                 />
               ))}
             </div>
@@ -488,7 +502,7 @@ export function MaintenanceTab({ iflows, onRefresh }) {
 
       {/* ── Custom sub-tab ── */}
       {subTab === "custom" && (
-        <CustomTab iflows={iflows} session={session} setSession={setSession} onRefresh={onRefresh} />
+        <CustomTab iflows={iflows} session={session} setSession={setSession} onRefresh={onRefresh} canDeploy={canDeploy} canManage={canManage} />
       )}
 
       {/* ── Group editor modal ── */}

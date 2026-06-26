@@ -212,24 +212,29 @@ export function IFlowTable({ iflows, onDeploy, onDelete, onRedeploy, onDetail, s
                   <TD style={{ textAlign: "right" }}>
                     <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                       {/* Smart Deploy/Redeploy button */}
-                      <Button
-                        variant={isDeployed ? "primary" : "success"}
-                        onClick={() => isDeployed ? onRedeploy(f) : onDeploy(f)}
-                        style={{ padding: "4px 10px", height: 28, fontSize: 12 }}
-                        title={isDeployed ? "Redeploy running iFlow" : "Deploy iFlow to runtime"}
-                      >
-                        {isDeployed ? <><RotateCcw size={12} /> Redeploy</> : <><Play size={12} /> Deploy</>}
-                      </Button>
-                      {/* Undeploy — only when deployed */}
-                      <Button
-                        variant="danger"
-                        onClick={() => onDelete(f)}
-                        disabled={!isDeployed}
-                        style={{ padding: "4px 10px", height: 28, fontSize: 12 }}
-                        title={!isDeployed ? "iFlow is not deployed" : "Undeploy iFlow from runtime"}
-                      >
-                        <PowerOff size={12} /> Undeploy
-                      </Button>
+                      {/* Deploy/Redeploy — hidden when user lacks deploy scope */}
+                      {(onDeploy || onRedeploy) && (
+                        <Button
+                          variant={isDeployed ? "primary" : "success"}
+                          onClick={() => isDeployed ? onRedeploy?.(f) : onDeploy?.(f)}
+                          style={{ padding: "4px 10px", height: 28, fontSize: 12 }}
+                          title={isDeployed ? "Redeploy running iFlow" : "Deploy iFlow to runtime"}
+                        >
+                          {isDeployed ? <><RotateCcw size={12} /> Redeploy</> : <><Play size={12} /> Deploy</>}
+                        </Button>
+                      )}
+                      {/* Undeploy — hidden when user lacks manage scope */}
+                      {onDelete && (
+                        <Button
+                          variant="danger"
+                          onClick={() => onDelete(f)}
+                          disabled={!isDeployed}
+                          style={{ padding: "4px 10px", height: 28, fontSize: 12 }}
+                          title={!isDeployed ? "iFlow is not deployed" : "Undeploy iFlow from runtime"}
+                        >
+                          <PowerOff size={12} /> Undeploy
+                        </Button>
+                      )}
                     </div>
                   </TD>
                 </tr>

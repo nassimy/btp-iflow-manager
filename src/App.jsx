@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchPackages, fetchIFlows, fetchRuntimeArtifacts, deployIFlow, deleteIFlow } from "./api";
+import { useAuth } from "./useAuth";
 import { IFlowTable } from "./components/IFlowTable";
 import { IFlowDetailPanel } from "./components/IFlowDetailPanel";
 import { PackagesView } from "./components/PackagesView";
@@ -7,7 +8,7 @@ import { ConfirmDeployModal, ConfirmDeleteModal, ConfirmRedeployModal, ConfirmBu
 import { MaintenanceTab } from "./components/MaintenanceTab";
 import { Button, Spinner } from "./components/UI";
 import { Toast, useToast } from "./components/Toast";
-import { RefreshCw, Play, PowerOff, Wrench, LayoutDashboard, Timer, ChevronLeft } from "lucide-react";
+import { RefreshCw, Play, PowerOff, Wrench, LayoutDashboard, Timer, ChevronLeft, User } from "lucide-react";
 
 const TABS = [
   { id: "dashboard",   label: "Dashboard",   icon: LayoutDashboard },
@@ -22,27 +23,29 @@ const AUTO_REFRESH_INTERVALS = [
 ];
 
 export default function App() {
-  const [activeTab, setActiveTab]           = useState("dashboard");
-  const [view, setView]                     = useState("packages"); // "packages" | "iflows"
+  const { user, authLoading, canView, canDeploy, canManage } = useAuth();
+
+  const [activeTab, setActiveTab]             = useState("dashboard");
+  const [view, setView]                       = useState("packages");
   const [selectedPackage, setSelectedPackage] = useState(null);
-  const [packages, setPackages]             = useState([]);
-  const [iflows, setIFlows]                 = useState([]);
-  const [loading, setLoading]               = useState(true);
-  const [refreshing, setRefreshing]         = useState(false);
-  const [search, setSearch]                 = useState("");
-  const [statusFilter, setStatusFilter]     = useState("");
-  const [deployTarget, setDeployTarget]     = useState(null);
-  const [deleteTarget, setDeleteTarget]     = useState(null);
-  const [redeployTarget, setRedeployTarget] = useState(null);
-  const [detailTarget, setDetailTarget]     = useState(null);
-  const [selected, setSelected]             = useState(new Set());
-  const [bulkAction, setBulkAction]         = useState(null);
-  const [autoRefresh, setAutoRefresh]       = useState(false);
-  const [autoInterval, setAutoInterval]     = useState(30);
-  const [countdown, setCountdown]           = useState(0);
-  const autoRefreshRef                      = useRef(null);
-  const countdownRef                        = useRef(null);
-  const { toast, show: showToast }          = useToast();
+  const [packages, setPackages]               = useState([]);
+  const [iflows, setIFlows]                   = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [refreshing, setRefreshing]           = useState(false);
+  const [search, setSearch]                   = useState("");
+  const [statusFilter, setStatusFilter]       = useState("");
+  const [deployTarget, setDeployTarget]       = useState(null);
+  const [deleteTarget, setDeleteTarget]       = useState(null);
+  const [redeployTarget, setRedeployTarget]   = useState(null);
+  const [detailTarget, setDetailTarget]       = useState(null);
+  const [selected, setSelected]               = useState(new Set());
+  const [bulkAction, setBulkAction]           = useState(null);
+  const [autoRefresh, setAutoRefresh]         = useState(false);
+  const [autoInterval, setAutoInterval]       = useState(30);
+  const [countdown, setCountdown]             = useState(0);
+  const autoRefreshRef                        = useRef(null);
+  const countdownRef                          = useRef(null);
+  const { toast, show: showToast }            = useToast();
 
   const hasMaintenanceSession = !!localStorage.getItem("iflow_maintenance_session");
 
@@ -76,9 +79,11 @@ export default function App() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    if (!authLoading && canView) load();
+  }, [authLoading, canView, load]);
 
-  // ── Auto-refresh ───────────────────────────────────────────────────────────
+  // ── Auto-refresh ──────────────────────────────────────────────────────────
   useEffect(() => {
     clearInterval(autoRefreshRef.current);
     clearInterval(countdownRef.current);
@@ -94,7 +99,7 @@ export default function App() {
     };
   }, [autoRefresh, autoInterval, load]);
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
+  // ── Handlers ──────────────────────────────────────────────────────────────
   const handleDeploy = async (id) => {
     await deployIFlow(id);
     setTimeout(() => load(true), 3000);
@@ -164,7 +169,7 @@ export default function App() {
     setSelected(new Set());
   };
 
-  // ── Filtered iflows for current package ────────────────────────────────────
+  // ── Filtered iflows ───────────────────────────────────────────────────────
   const packageIFlows = selectedPackage
     ? iflows.filter(f => f.packageId === selectedPackage.id)
     : iflows;
@@ -202,6 +207,31 @@ export default function App() {
     { label: "Not deployed", key: "notDeployed", color: "#854F0B" },
   ];
 
+  // ── Loading / Access denied states ────────────────────────────────────────
+  if (authLoading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F7F6F2", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Spinner size={28} />
+      </div>
+    );
+  }
+
+  if (!canView) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F7F6F2", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 12 }}>
+        <div style={{ fontSize: 40 }}>🔒</div>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#1A1A18" }}>Access Denied</div>
+        <div style={{ fontSize: 13, color: "#6B6963", maxWidth: 340, textAlign: "center" }}>
+          You don't have the <strong>Viewer</strong> role for this application.
+          Contact your BTP administrator to request access.
+        </div>
+        {user?.email && (
+          <div style={{ fontSize: 12, color: "#9B9890", marginTop: 4 }}>Logged in as: {user.email}</div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#F7F6F2", fontFamily: "system-ui, -apple-system, sans-serif" }}>
 
@@ -217,6 +247,22 @@ export default function App() {
           <span style={{ fontSize: 11, color: "#9B9890", fontWeight: 500 }}>BTP Integration Suite</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* User info chip */}
+          {user && (
+            <div style={{ display: "flex", alignItems: "center", gap: 5, padding: "0 10px", height: 28, borderRadius: 14, background: "#F7F6F2", border: "1px solid #ECEAE3" }}>
+              <User size={11} color="#6B6963" />
+              <span style={{ fontSize: 11, color: "#6B6963", fontWeight: 500 }}>{user.name}</span>
+              {/* Role badge */}
+              <span style={{
+                fontSize: 10, fontWeight: 600, padding: "1px 6px", borderRadius: 8,
+                background: canManage ? "#E8F5E9" : canDeploy ? "#E3F0FB" : "#F7F6F2",
+                color: canManage ? "#27500A" : canDeploy ? "#0C447C" : "#6B6963",
+                border: `1px solid ${canManage ? "#A5D6A7" : canDeploy ? "#85B7EB" : "#D8D6CF"}`,
+              }}>
+                {canManage ? "Administrator" : canDeploy ? "Operator" : "Viewer"}
+              </span>
+            </div>
+          )}
           {/* Auto-refresh */}
           <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 10px", height: 32, borderRadius: 7, border: "1px solid #D8D6CF", background: autoRefresh ? "#E6F1FB" : "#fff" }}>
             <Timer size={13} color={autoRefresh ? "#0C447C" : "#9B9890"} />
@@ -242,7 +288,6 @@ export default function App() {
 
       {/* ── Tab bar ── */}
       <div style={{ background: "#fff", borderBottom: "1px solid #ECEAE3", padding: "0 2rem", display: "flex", alignItems: "center" }}>
-        {/* Breadcrumb inside tab bar when in iflows view */}
         {activeTab === "dashboard" && view === "iflows" && (
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 24 }}>
             <button
@@ -255,14 +300,13 @@ export default function App() {
             <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A18" }}>{selectedPackage?.name}</span>
           </div>
         )}
-
         {TABS.map(({ id, label, icon: Icon }) => {
           const isActive  = activeTab === id;
           const showBadge = id === "maintenance" && hasMaintenanceSession;
           return (
             <button
               key={id}
-              onClick={() => { setActiveTab(id); if (id === "dashboard") {} }}
+              onClick={() => setActiveTab(id)}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
                 padding: "0 4px", height: 44, fontSize: 13, fontWeight: isActive ? 600 : 500,
@@ -283,7 +327,6 @@ export default function App() {
       {/* ── Dashboard tab ── */}
       {activeTab === "dashboard" && (
         <>
-          {/* Packages view */}
           {view === "packages" && (
             <PackagesView
               packages={packages}
@@ -293,7 +336,6 @@ export default function App() {
             />
           )}
 
-          {/* iFlows view */}
           {view === "iflows" && (
             <main style={{ maxWidth: 1100, margin: "0 auto", padding: "1.75rem 1.5rem" }}>
 
@@ -322,37 +364,41 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Bulk action bar */}
-              {selected.size > 0 && (
+              {/* Bulk action bar — only shown when user has deploy or manage scope */}
+              {selected.size > 0 && (canDeploy || canManage) && (
                 <div style={{ display: "flex", alignItems: "center", gap: 10, background: "#E6F1FB", border: "1px solid #85B7EB", borderRadius: 8, padding: "8px 14px", marginBottom: "0.75rem" }}>
                   <span style={{ fontSize: 13, color: "#0C447C", fontWeight: 600 }}>
                     {selected.size} iFlow{selected.size !== 1 ? "s" : ""} selected
                   </span>
                   <div style={{ display: "flex", gap: 6, marginLeft: "auto" }}>
-                    <Button variant="success" style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
-                      onClick={() => setBulkAction({ action: "deploy", iflows: selectedIFlows.filter(f => f.status === "not deployed") })}
-                      disabled={deployableCount === 0}>
-                      <Play size={12} /> Deploy {deployableCount > 0 ? deployableCount : ""}
-                    </Button>
-                    <Button variant="danger" style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
-                      onClick={() => setBulkAction({ action: "undeploy", iflows: selectedIFlows.filter(f => f.status !== "not deployed") })}
-                      disabled={undeployableCount === 0}>
-                      <PowerOff size={12} /> Undeploy {undeployableCount > 0 ? undeployableCount : ""}
-                    </Button>
+                    {canDeploy && (
+                      <Button variant="success" style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
+                        onClick={() => setBulkAction({ action: "deploy", iflows: selectedIFlows.filter(f => f.status === "not deployed") })}
+                        disabled={deployableCount === 0}>
+                        <Play size={12} /> Deploy {deployableCount > 0 ? deployableCount : ""}
+                      </Button>
+                    )}
+                    {canManage && (
+                      <Button variant="danger" style={{ height: 28, padding: "4px 10px", fontSize: 12 }}
+                        onClick={() => setBulkAction({ action: "undeploy", iflows: selectedIFlows.filter(f => f.status !== "not deployed") })}
+                        disabled={undeployableCount === 0}>
+                        <PowerOff size={12} /> Undeploy {undeployableCount > 0 ? undeployableCount : ""}
+                      </Button>
+                    )}
                     <Button style={{ height: 28, padding: "4px 10px", fontSize: 12 }} onClick={() => setSelected(new Set())}>Clear</Button>
                   </div>
                 </div>
               )}
 
-              {/* Table */}
+              {/* Table — pass role flags so row-level buttons are hidden too */}
               <div style={{ background: "#fff", border: "1px solid #ECEAE3", borderRadius: 10 }}>
                 {loading
                   ? <div style={{ textAlign: "center", padding: "3rem", color: "#6B6963" }}><Spinner size={24} /></div>
                   : <IFlowTable
                       iflows={visible}
-                      onDeploy={setDeployTarget}
-                      onDelete={setDeleteTarget}
-                      onRedeploy={setRedeployTarget}
+                      onDeploy={canDeploy ? setDeployTarget : null}
+                      onDelete={canManage ? setDeleteTarget : null}
+                      onRedeploy={canDeploy ? setRedeployTarget : null}
                       onDetail={setDetailTarget}
                       selected={selected}
                       onToggle={handleToggle}
@@ -367,7 +413,7 @@ export default function App() {
 
       {/* ── Maintenance tab ── */}
       {activeTab === "maintenance" && (
-        <MaintenanceTab iflows={iflows} onRefresh={load} />
+        <MaintenanceTab iflows={iflows} onRefresh={load} canDeploy={canDeploy} canManage={canManage} />
       )}
 
       {deployTarget   && <ConfirmDeployModal   iflow={deployTarget}   onConfirm={handleDeploy}   onClose={() => setDeployTarget(null)} />}

@@ -1,0 +1,14 @@
+---
+applications:
+  - name: btp-iflow-manager-srv
+    memory: 256M
+    disk_quota: 512M
+    path: .
+    command: node server.js
+    buildpacks:
+      - nodejs_buildpack
+    services:
+      - btp-iflow-manager-xsuaa
+      - btp-iflow-manager-destination
+    env:
+      NODE_ENV: production
