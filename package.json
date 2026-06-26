@@ -15,7 +15,13 @@
     "build": "bash build.sh",
     "start:proxy": "cd proxy && node server.js",
     "dev": "concurrently \"npm start\" \"npm run start:proxy\"",
-    "deploy:ui": "react-scripts build && cp -r build/* approuter/resources/ && cd approuter && cf push btp-iflow-manager-approuter"
+    "deploy:ui": "react-scripts build && cp -r build/* approuter/resources/ && cd approuter && cf push btp-iflow-manager-approuter",
+    "undelpoy:ui": "cd approuter && cf delete btp-iflow-manager-approuter -f",
+    "undelpoy:proxy": "cd proxy && cf delete btp-iflow-manager-proxy -f",
+    "deploy:proxy": "cd proxy && cf push btp-iflow-manager-proxy",
+    "undeploy:all": "npm run undelpoy:ui && npm run undelpoy:proxy",
+    "deploy:all": "npm run deploy:ui && npm run deploy:proxy",
+    "undeploy:all-services": "cf undeploy btp-iflow-manager --delete-services --delete-service-keys -f"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
